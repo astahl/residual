@@ -1,7 +1,10 @@
 CMakeCache.txt
+CMakeSettings.json
 CMakeFiles
 CMakeScripts
 Makefile
 cmake_install.cmake
 install_manifest.txt
 CTestTestfile.cmake
+.vs
+out
