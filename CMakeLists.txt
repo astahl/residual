@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.2)
 
 project(ReSDL)
 
-set (CMAKE_CXX_STANDARD 14)
+set (CMAKE_CXX_STANDARD 17)
 
 find_package(SDL2 REQUIRED)
 #find_package(SDL2_image REQUIRED)
@@ -16,7 +16,7 @@ add_library(ReSDL STATIC
 #  includes/ReSDL/ReSDLImage.h
   src/ReSDLCore.cpp
   src/ReSDLTypes.cpp
-)
+ "includes/ReSDL/Surface.h")
 
 target_link_libraries(ReSDL SDL2::SDL2-static)
 target_include_directories(ReSDL

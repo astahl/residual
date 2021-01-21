@@ -27,13 +27,16 @@ namespace Engine {
 			Aux_9
 		};
 		
-		using AxisInputHandlerFunc = std::function<void(const Axis&, const double&)>;
+		using AxisInputHandlerFunc = std::function<void(const Axis, const double)>;
 		using AxisValueMappingS16 = std::function<double(Sint16)>;
-		
 		
 		class AxisInputManager
 		{
-		private:
+			std::map<Uint8, std::tuple<Axis, double>> keyMap;
+			std::map<std::shared_ptr<ReSDL::Joystick>, std::map<int, std::tuple<AxisValueMappingS16, Axis>>> joysticks;
+			std::map<std::shared_ptr<ReSDL::GameController>, std::map<SDL_GameControllerAxis, std::tuple<AxisValueMappingS16, Axis>>> controllerMapping;
+			std::map<Axis, AxisInputHandlerFunc> handlers;
+			std::map<Axis, double> offValues;
 			
 			void handleKeyState(std::map<Axis, double> &values) const
 			{
@@ -126,7 +129,7 @@ namespace Engine {
 			
 			void setJoystickMapping(std::shared_ptr<ReSDL::Joystick> joystick,
 															int joystickAxis,
-															const Axis &axis,
+															Axis axis,
 															AxisValueMappingS16 mapping)
 			{
 				joysticks[joystick][joystickAxis] = {mapping, axis};
@@ -134,13 +137,13 @@ namespace Engine {
 			
 			void setGameControllerMapping(std::shared_ptr<ReSDL::GameController> controller,
 																		SDL_GameControllerAxis controllerAxis,
-																		const Axis &axis,
+																		Axis axis,
 																		AxisValueMappingS16 mapping)
 			{
 				controllerMapping[controller][controllerAxis] = {mapping, axis};
 			}
 			
-			void setAxisHandler(const Axis &axis, AxisInputHandlerFunc handler)
+			void setAxisHandler(Axis axis, AxisInputHandlerFunc handler)
 			{
 				if(handler) {
 					handlers[axis] = handler;
@@ -150,22 +153,15 @@ namespace Engine {
 				}
 			}
 			
-			void setAxisOffValue(const Axis &axis, const double &value = std::numeric_limits<double>::quiet_NaN())
+			void setAxisOffValue(Axis axis, double value)
 			{
-				if(!isnan(value)) {
-					offValues[axis] = value;
-				}
-				else {
-					offValues.erase(axis);
-				}
+				offValues[axis] = value;
 			}
-			
-		private:
-			std::map<Uint8, std::tuple<Axis, double>> keyMap;
-			std::map<std::shared_ptr<ReSDL::Joystick>, std::map<int, std::tuple<AxisValueMappingS16, Axis>>> joysticks;
-			std::map<std::shared_ptr<ReSDL::GameController>, std::map<SDL_GameControllerAxis, std::tuple<AxisValueMappingS16, Axis>>> controllerMapping;
-			std::map<Axis, AxisInputHandlerFunc> handlers;
-			std::map<Axis, double> offValues;
+
+			void clearAxisOffValue(Axis axis) {
+				offValues.erase(axis);
+			}
+
 		};
 
 		

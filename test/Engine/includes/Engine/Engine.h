@@ -32,15 +32,18 @@ class RttRendererWindow {
 	const int m_TargetWidth;
 	const int m_TargetHeight;
 	const float m_AspectRatio;
+
+	SDL_Rect m_dstRect;
 	
 	std::shared_ptr<ReSDL::Window> m_Window;
 	std::shared_ptr<ReSDL::Renderer> m_Renderer;
 	ReSDL::Texture m_TargetTexture;
 	
 public:
-	RttRendererWindow(int targetWidth, int targetHeight);
+	RttRendererWindow(int targetWidth, int targetHeight, float pixelAspectRatio);
 	void prepareFrame();
 	void finalizeFrame();
+	void updateDstRect();
 	
 	std::shared_ptr<ReSDL::Renderer> renderer();
 };
@@ -70,7 +73,7 @@ class Engine {
 	long m_FrameCount;
 public:
 	
-	Engine(/** initial config **/int width, int height);
+	Engine(/** initial config **/int width, int height, float pixelAspectRatio);
 	~Engine();
 
 	void start();

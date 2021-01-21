@@ -12,6 +12,9 @@
 
 namespace ReSDL {
 	
+	struct Size {
+		int width, height;
+	};
 
 struct Color {
 	uint8_t r, g, b, a;

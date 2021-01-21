@@ -16,6 +16,7 @@
 
 namespace ReSDL {
 	
+	using WindowId = unsigned int;
 	
 	class SDL {
 	public:
@@ -33,20 +34,40 @@ namespace ReSDL {
 		: Wrapper(SDL_CreateWindow(title, x, y, w, h, flags))
 		{
 		}
-		
-		void getSize(int *w, int *h)
+
+		Window(SDL_Window* window, bool own)
+			: Wrapper(window, own)
 		{
-			SDL_GetWindowSize(raw(), w, h);
 		}
 		
-		void getDrawableSize(int *w, int *h)
+		WindowId getId() {
+			return SDL_GetWindowID(raw());
+		}
+
+		static std::optional<Window> getFromId(WindowId id) {
+			SDL_Window* window = SDL_GetWindowFromID(id);
+
+			return window ? std::make_optional<Window>(window, false) : std::nullopt;
+		}
+
+		Size getSize()
 		{
-			SDL_GL_GetDrawableSize(raw(), w, h);
+			int w, h;
+			SDL_GetWindowSize(raw(), &w, &h);
+			return { w, h };
+		}
+				
+		Size getDrawableSize()
+		{
+			int w, h;
+			SDL_GL_GetDrawableSize(raw(), &w, &h);
+			return { w, h };
 		}
 		
 		SDL_Surface *getSurface()
 		{
-			return SDL_GetWindowSurface(raw());
+			SDL_Surface* surface = SDL_GetWindowSurface(raw());
+			return surface;
 		}
 	};
 	
@@ -54,23 +75,36 @@ namespace ReSDL {
 	class Renderer : public Wrapper<SDL_Renderer, SDL_DestroyRenderer>
 	{
 	public:
-		Renderer(SDL_Window* window,
-						 int         index,
-						 Uint32      flags)
+		Renderer(Window& window,
+			int         index,
+			Uint32      flags)
 		: Wrapper(SDL_CreateRenderer(window, index, flags))
 		{
 		}
 		
-		void drawRect(const SDL_Rect *rect) {
-			check(SDL_RenderDrawRect(raw(), rect));
+		void drawRect(const SDL_Rect& rect) {
+			check(SDL_RenderDrawRect(raw(), &rect));
+		}
+
+		void drawEntireRenderTarget() {
+			check(SDL_RenderDrawRect(raw(), nullptr));
 		}
 		
-		void fillRect(const SDL_Rect *rect) {
-			check(SDL_RenderFillRect(raw(), rect));
+		void fillRect(const SDL_Rect& rect) {
+			check(SDL_RenderFillRect(raw(), &rect));
+		}
+
+		void fillEntireRenderTarget() {
+			check(SDL_RenderFillRect(raw(), nullptr));
 		}
 		
 		void drawPoints(const SDL_Point *points, size_t count) {
 			check(SDL_RenderDrawPoints(raw(), points, static_cast<int>(count)));
+		}
+
+		template<class Collection>
+		void drawPoints(const Collection& points) {
+			check(SDL_RenderDrawPoints(raw(), &points[0], points.size()));
 		}
 		
 		void drawLine(int x1, int y1, int x2, int y2) {
@@ -83,6 +117,12 @@ namespace ReSDL {
 		
 		void getDrawColor(Uint8 *r, Uint8 *g, Uint8 *b, Uint8 *a) {
 			check(SDL_GetRenderDrawColor(raw(), r, g, b, a));
+		}
+
+		Color getDrawColor() {
+			Color c{};
+			check(SDL_GetRenderDrawColor(raw(), &c.r, &c.g, &c.b, &c.a));
+			return c;
 		}
 		
 		void setDrawColor(const Color &c) {
@@ -126,10 +166,14 @@ namespace ReSDL {
 			return SDL_TRUE == SDL_RenderTargetSupported(raw());
 		}
 		
-		void setViewport(const SDL_Rect *rect) {
-			check(SDL_RenderSetViewport(raw(), rect));
+		void setViewport(const SDL_Rect& rect) {
+			check(SDL_RenderSetViewport(raw(), &rect));
 		}
 		
+		void setViewportToEntireTarget() {
+			check(SDL_RenderSetViewport(raw(), nullptr));
+		}
+
 		void setDrawBlendMode(SDL_BlendMode blendMode) {
 			check(SDL_SetRenderDrawBlendMode(raw(), blendMode));
 		}

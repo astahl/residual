@@ -7,9 +7,6 @@
 //
 
 #pragma once
-#include <functional>
-#include <map>
-#include <memory>
 
 namespace Engine {
 	namespace Input {

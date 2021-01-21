@@ -29,6 +29,7 @@ public:
 
 template<typename R, void (*Deleter)(R*)>
 class Wrapper {
+	std::unique_ptr<R, void(*)(R*)> m_handle;
 public:
 	Wrapper()
 		: m_handle{ nullptr, nullptr }
@@ -36,8 +37,8 @@ public:
 
 	}
 
-	Wrapper(R* rawPointer)
-	: m_handle(rawPointer, Deleter) {
+	Wrapper(R* rawPointer, bool own = true)
+	: m_handle(rawPointer, own ? Deleter : nullptr) {
 		if(!m_handle) {
 			throw SDLError{ "Wrapper failed, handle is nullptr." };
 		}
@@ -68,14 +69,11 @@ public:
 		return *m_handle.get();
 	}
 
-	virtual ~Wrapper() {};
+	~Wrapper() {};
 	
 	R* raw() const { return m_handle.get(); }
 	
 	bool isNull() const { return nullptr == m_handle.get(); }
-	
-private:
-	std::unique_ptr<R, void(*)(R*)> m_handle;
 };
 	
 	inline void check(int result) {

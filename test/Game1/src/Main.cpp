@@ -63,8 +63,10 @@ public:
 	void render(ReSDL::Renderer& renderer)
 	{
 		SDL_Rect rect{static_cast<int>(m_Rectangle.x + m_Position[0]), static_cast<int>(m_Rectangle.y + m_Position[1]), m_Rectangle.w, m_Rectangle.h};
+		renderer.setDrawColor(ReSDL::Color::Green);
+		renderer.fillRect(rect);
 		renderer.setDrawColor(ReSDL::Color::White);
-		renderer.drawRect(&rect);
+		renderer.drawRect(rect);
 	}
 	
 	void update(std::chrono::microseconds deltaT)
@@ -89,18 +91,11 @@ public:
 };
 
 class Game {
-	const int m_TargetWidth;
-	const int m_TargetHeight;
 	Engine::Engine m_Engine;
-	
-	int m_I;
 public:
 	
 	Game()
-		: m_TargetWidth(320)
-		, m_TargetHeight(200)
-		, m_Engine{ m_TargetWidth, m_TargetHeight }
-	, m_I(0)
+		: m_Engine{ 320, 200, 0.75 }
 	{
 		using namespace Engine::Input;
 		
@@ -127,22 +122,6 @@ public:
 	{
 		m_Engine.start();
 		return 0;
-	}
-	
-	void render(ReSDL::Renderer& renderer)
-	{
-		renderer.setDrawColor(ReSDL::Color::Cyan);
-		renderer.clear();
-		renderer.setDrawColor(ReSDL::Color::Magenta);
-		renderer.drawLine(m_I, 0, m_TargetWidth - m_I, m_TargetHeight);
-		renderer.drawLine(m_TargetWidth - m_I, 0, m_I, m_TargetHeight);
-		
-	}
-	
-	void update(std::chrono::microseconds ticks)
-	{
-		m_I++;
-		if(m_I > m_TargetWidth) m_I = 0;
 	}
 	
 };
