@@ -3,16 +3,7 @@ namespace Input {
 	
 using EventHandlerFunc = std::function<void(const SDL_Event&)>;
 
-class EventManager {
-public:
-	void setHandler(SDL_EventType type, EventHandlerFunc handler) {
-		if(handler) {
-			handlers[type] = handler;
-		}
-		else {
-			handlers.erase(type);
-		}
-	}
+struct EventManager {
 	
 	void pollAndHandle() const {
 		SDL_Event e;
@@ -33,7 +24,6 @@ public:
 		}
 	}
 	
-private:
 	std::map<SDL_EventType, EventHandlerFunc> handlers;
 };
 

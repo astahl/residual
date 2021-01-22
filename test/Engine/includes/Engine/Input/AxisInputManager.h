@@ -7,6 +7,7 @@
 //
 
 #pragma once
+#include <Engine/Utilities.h>
 
 namespace Engine {
 	namespace Input {
@@ -26,68 +27,133 @@ namespace Engine {
 			Aux_8,
 			Aux_9
 		};
+
+		enum class Radial {
+			Main, Secondary, Tertiary, 
+			Aux_0,
+			Aux_1,
+			Aux_2,
+			Aux_3,
+			Aux_4,
+			Aux_5,
+			Aux_6,
+			Aux_7,
+			Aux_8,
+			Aux_9
+		};
 		
 		using AxisInputHandlerFunc = std::function<void(const Axis, const double)>;
 		using AxisValueMappingS16 = std::function<double(Sint16)>;
 		
+		struct KeyMapping {
+			Axis axis;
+			double maxValue;
+			double offValue;
+			double minValue;
+		};
+
+		struct S16Mapping {
+			AxisValueMappingS16 mappingFunc;
+			Axis axis;
+		};
+
+		using RadialInputHandlerFunc = std::function<void(Radial, Vec2d)>;
+		using RadialValueMappingS16 = std::function<Vec2d(Sint16, Sint16)>;
+
+		struct S16RadialMapping {
+			RadialValueMappingS16 mappingFunc;
+			Radial radial;
+		};
+
+		struct KeyCross {
+			Uint8 up, down, left, right;
+		};
+
+		struct RadialKeyMapping {
+			Radial radial;
+		};
+
 		class AxisInputManager
 		{
-			std::map<Uint8, std::tuple<Axis, double>> keyMap;
-			std::map<std::shared_ptr<ReSDL::Joystick>, std::map<int, std::tuple<AxisValueMappingS16, Axis>>> joysticks;
-			std::map<std::shared_ptr<ReSDL::GameController>, std::map<SDL_GameControllerAxis, std::tuple<AxisValueMappingS16, Axis>>> controllerMapping;
+			using SDL_JoystickAxisId = int;
+			std::map<Uint8, KeyMapping> keys;
+			std::map<std::pair<Uint8, Uint8>, KeyMapping> keyPairs;
+			std::map<Radial, KeyCross> keyQuads;
+			std::map<std::shared_ptr<ReSDL::Joystick>, std::map<SDL_JoystickAxisId, S16Mapping>> joysticks;
+			std::map<std::shared_ptr<ReSDL::GameController>, std::map<SDL_GameControllerAxis, S16Mapping>> controllerMapping;
+			std::map<std::shared_ptr<ReSDL::GameController>, std::map<std::pair<SDL_GameControllerAxis, SDL_GameControllerAxis>, S16RadialMapping>> controllerRadialMapping;
 			std::map<Axis, AxisInputHandlerFunc> handlers;
-			std::map<Axis, double> offValues;
+			std::map<Radial, RadialInputHandlerFunc> radialHandlers;
 			
-			void handleKeyState(std::map<Axis, double> &values) const
+			const Sint16 deadZone = 1000;
+
+			void handleKeyState(std::map<Axis, double> &values, std::map<Radial, Vec2d>& radialValues) const
 			{
 				const Uint8 *state = SDL_GetKeyboardState(NULL);
 				
-				for(const auto &keyMapping : keyMap)
+
+				for (const auto& [key, mapping] : keys)
 				{
-					const Axis &axis = std::get<0>(keyMapping.second);
-					if(handlers.count(axis))
-					{
-						AxisInputHandlerFunc handler = handlers.at(axis);
-						if(state[keyMapping.first])
-						{
-							const double &value = std::get<1>(keyMapping.second);
-							values[axis] = value;
-						}
-					}
+					values[mapping.axis] = state[key] ? mapping.maxValue : mapping.offValue;
+				}
+
+				for (const auto& [ keypair, mapping ] : keyPairs)
+				{
+					values[mapping.axis] = state[keypair.first] ? mapping.minValue : state[keypair.second] ? mapping.maxValue : mapping.offValue;
+				}
+				
+				for (const auto& [ radial, keycross] : keyQuads)
+				{
+					Vec2d value{};
+					const bool
+						l = state[keycross.left],
+						r = state[keycross.right],
+						u = state[keycross.up],
+						d = state[keycross.down];
+
+					const double val = (l || r) && (u || d) ? 0.707 : 1.0;
+					value.x() = l ? -val : r ?  val : 0.0;
+					value.y() = d ?  val : u ? -val : 0.0;
+					
+					radialValues[radial] = value;
 				}
 			}
 			
 			void handleJoysticks(std::map<Axis, double> &values) const
 			{
-				for(auto &joystickMapping : joysticks)
+				for(const auto& [ joystick, mappings ] : joysticks)
 				{
-					auto &joystick = joystickMapping.first;
-					for(auto &joyAxisMapping : joystickMapping.second)
+					for(const auto& [ joyAxis, mapping ] : mappings)
 					{
-						Sint16 axisValue = joystick->getAxis(joyAxisMapping.first);
-						const Axis &axis = std::get<1>(joyAxisMapping.second);
-						double value = std::get<0>(joyAxisMapping.second)(axisValue);
-						if(fabs(value) > 0.05)
-						{
-							values[axis] = value;
+						const Sint16 axisValue = joystick->getAxis(joyAxis);
+						if (abs(axisValue) > deadZone) {
+							values[mapping.axis] = mapping.mappingFunc(axisValue);
 						}
 					}
 				}
 			}
 			
-			void handleGameControllers(std::map<Axis, double> &values) const
+			void handleGameControllers(std::map<Axis, double> &values, std::map<Radial, Vec2d>& radialValues) const
 			{
-				for(auto &gameControllerMapping : controllerMapping)
+				for(const auto& [ controller, mappings ] : controllerMapping)
 				{
-					auto &gameController = gameControllerMapping.first;
-					for(auto &gcAxisMapping : gameControllerMapping.second)
+					for(const auto& [ conAxis, mapping ] : mappings)
 					{
-						Sint16 axisValue = gameController->getAxis(gcAxisMapping.first);
-						const Axis &axis = std::get<1>(gcAxisMapping.second);
-						double value = std::get<0>(gcAxisMapping.second)(axisValue);
-						if(fabs(value) > 0.05)
-						{
-							values[axis] = value;
+						const Sint16 axisValue = controller->getAxis(conAxis);
+						if (abs(axisValue) > deadZone) {
+							values[mapping.axis] = mapping.mappingFunc(axisValue);
+						}
+					}
+				}
+
+				for (const auto& [controller, mappings] : controllerRadialMapping)
+				{
+					for (const auto& [conAxis, mapping] : mappings)
+					{
+						const auto valueX = controller->getAxis(conAxis.first);
+						const auto valueY = controller->getAxis(conAxis.second);
+						if (abs(valueX) > deadZone || abs(valueY) > deadZone) {
+							radialValues[mapping.radial] = mapping.mappingFunc(valueX, valueY);
 						}
 					}
 				}
@@ -95,52 +161,75 @@ namespace Engine {
 			
 			void submitValues(const std::map<Axis, double> &values) const
 			{
-				std::set<Axis> handledAxes;
-				for(auto &axisValues : values) {
-					const Axis &axis = axisValues.first;
-					if(handlers.count(axis))
+				for(const auto& [axis, handler] : handlers) {
+					if(values.count(axis))
 					{
-						AxisInputHandlerFunc handler = handlers.at(axis);
-						handler(axis, axisValues.second);
-						handledAxes.insert(axis);
-					}
-				}
-				for(const auto &offValueMapping : offValues) {
-					const Axis &axis = offValueMapping.first;
-					if(handlers.count(axis) && handledAxes.count(axis) == 0) {
-						AxisInputHandlerFunc handler = handlers.at(axis);
-						handler(axis, offValueMapping.second);
+						handler(axis, values.at(axis));
 					}
 				}
 			}
+
+			void submitRadialValues(const std::map<Radial, Vec2d>& values) const
+			{
+				for (const auto& [radial, handler] : radialHandlers) {
+					if (values.count(radial))
+					{
+						handler(radial, values.at(radial));
+					}
+				}
+			}
+
 		public:
 			void handleAndSubmitEvents() const {
-				std::map<Axis, double> values;
-				this->handleKeyState(values);
+				std::map<Axis, double> values{};
+				std::map<Radial, Vec2d> radialValues{};
+				this->handleKeyState(values, radialValues);
 				this->handleJoysticks(values);
-				this->handleGameControllers(values);
+				this->handleGameControllers(values, radialValues);
 				this->submitValues(values);
+				submitRadialValues(radialValues);
 			}
 			
-			void setKeyMapping(Uint8 keyCode, const Axis &axis, const double &value)
+
+
+			void setKeyMapping(const Axis& axis, Uint8 keyCode, double offValue, double maxValue)
 			{
-				keyMap[keyCode] = std::make_tuple(axis, value);
+				keys[keyCode] = KeyMapping{ axis, maxValue, offValue, std::numeric_limits<double>::quiet_NaN() };
 			}
 			
+			void setKeyMapping(const Axis& axis, Uint8 keyCodeMin, Uint8 keyCodeMax, double minValue, double offValue, double maxValue)
+			{
+				keyPairs[std::make_pair(keyCodeMin, keyCodeMax)] = KeyMapping{ axis, maxValue, offValue, minValue };
+			}
+
+			void setKeyMapping(const Radial& radial, Uint8 keyCodeUp, Uint8 keyCodeDown, Uint8 keyCodeLeft, Uint8 keyCodeRight)
+			{
+				keyQuads[radial] = { keyCodeUp, keyCodeDown, keyCodeLeft, keyCodeRight }; 
+			}
+
 			void setJoystickMapping(std::shared_ptr<ReSDL::Joystick> joystick,
-															int joystickAxis,
-															Axis axis,
-															AxisValueMappingS16 mapping)
+				SDL_JoystickAxisId joystickAxis,
+				Axis axis,
+				AxisValueMappingS16 mapping)
 			{
-				joysticks[joystick][joystickAxis] = {mapping, axis};
+				joysticks[joystick][joystickAxis] = S16Mapping{ mapping, axis };
 			}
 			
 			void setGameControllerMapping(std::shared_ptr<ReSDL::GameController> controller,
-																		SDL_GameControllerAxis controllerAxis,
-																		Axis axis,
-																		AxisValueMappingS16 mapping)
+				SDL_GameControllerAxis controllerAxis,
+				Axis axis,
+				AxisValueMappingS16 mapping)
 			{
-				controllerMapping[controller][controllerAxis] = {mapping, axis};
+				controllerMapping[controller][controllerAxis] = S16Mapping{ mapping, axis };
+			}
+
+			void setGameControllerMapping(std::shared_ptr<ReSDL::GameController> controller,
+				SDL_GameControllerAxis controllerAxisX,
+				SDL_GameControllerAxis controllerAxisY,
+				Radial radial,
+				RadialValueMappingS16 mapping)
+			{
+				controllerRadialMapping[controller][std::make_pair(controllerAxisX, controllerAxisY)] = S16RadialMapping{ mapping, radial };
 			}
 			
 			void setAxisHandler(Axis axis, AxisInputHandlerFunc handler)
@@ -152,14 +241,15 @@ namespace Engine {
 					handlers.erase(axis);
 				}
 			}
-			
-			void setAxisOffValue(Axis axis, double value)
-			{
-				offValues[axis] = value;
-			}
 
-			void clearAxisOffValue(Axis axis) {
-				offValues.erase(axis);
+			void setRadialHandler(Radial radial, RadialInputHandlerFunc handler)
+			{
+				if (handler) {
+					radialHandlers[radial] = handler;
+				}
+				else {
+					radialHandlers.erase(radial);
+				}
 			}
 
 		};

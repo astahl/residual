@@ -9,9 +9,10 @@
 #pragma once
 
 template<typename T, size_t N>
-class Vec
+struct Vec
 {
-public:
+	std::array<T, N> data;
+
 	Vec()
 	: data(std::array<T,N>())
 	{
@@ -121,6 +122,24 @@ public:
 		return data[index];
 	}
 	
+
+	constexpr T& x()
+	{
+		return data[0];
+	}
+
+	constexpr T& y()
+	{
+		static_assert(N > 1);
+		return data[1];
+	}
+
+	constexpr T& z()
+	{
+		static_assert(N > 2);
+		return data[2];
+	}
+
 	template<size_t NewSize>
 	Vec<T,NewSize> resize(const T& fill = T()) const
 	{
@@ -153,9 +172,6 @@ public:
 		Vec<int,2> conv = resized.template convert<int>();
 		return SDL_Point({conv[0], conv[1]});
 	}
-	
-private:
-	std::array<T,N> data;
 };
 
 template<typename T, size_t N>
@@ -173,6 +189,7 @@ std::ostream &operator<<(std::ostream &os, const Vec<T,N> &vec)
 	return os;
 }
 
+using Vec2i = Vec<int, 2>;
 
 using Vec2d = Vec<double,2>;
 

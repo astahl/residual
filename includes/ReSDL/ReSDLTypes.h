@@ -49,10 +49,10 @@ struct Color {
 };
 
 constexpr Color max(const Color& c1, const Color& c2) {
-	return { cmax(c1.r, c2.r),
-		cmax(c1.g, c2.g),
-		cmax(c1.b, c2.b),
-		cmax(c1.a, c2.a)};
+	return { std::max(c1.r, c2.r),
+		std::max(c1.g, c2.g),
+		std::max(c1.b, c2.b),
+		std::max(c1.a, c2.a)};
 }
 	
 	

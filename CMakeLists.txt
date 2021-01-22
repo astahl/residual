@@ -16,7 +16,7 @@ add_library(ReSDL STATIC
 #  includes/ReSDL/ReSDLImage.h
   src/ReSDLCore.cpp
   src/ReSDLTypes.cpp
- "includes/ReSDL/Surface.h")
+ "includes/ReSDL/Surface.h" "includes/ReSDL/Window.h" "includes/ReSDL/Joystick.h" "includes/ReSDL/GameController.h" "includes/ReSDL/Renderer.h" "includes/ReSDL/Texture.h")
 
 target_link_libraries(ReSDL SDL2::SDL2-static)
 target_include_directories(ReSDL

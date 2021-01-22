@@ -50,12 +50,16 @@ struct PhysicsPoint : public Engine::IUpdatable {
 class Sprite : public Engine::IRenderable, public Engine::IUpdatable
 {
 	
-	SDL_Rect m_Rectangle;
-	Vec2d m_Speed;
 	Vec2d m_Position;
+	SDL_Rect m_Rectangle;
+	Vec2d speed;
 public:
+	Vec2d acceleration;
+	double friction;
+
 	Sprite(int w, int h, int x = 0, int y = 0)
 	: m_Rectangle({x, y, w, h})
+		, friction {0.1}
 	{
 		
 	}
@@ -64,31 +68,80 @@ public:
 	{
 		SDL_Rect rect{static_cast<int>(m_Rectangle.x + m_Position[0]), static_cast<int>(m_Rectangle.y + m_Position[1]), m_Rectangle.w, m_Rectangle.h};
 		renderer.setDrawColor(ReSDL::Color::Green);
-		renderer.fillRect(rect);
+		if (speed.x() == 0 && speed.y() == 0)
+			renderer.fillRect(rect);
 		renderer.setDrawColor(ReSDL::Color::White);
 		renderer.drawRect(rect);
 	}
 	
 	void update(std::chrono::microseconds deltaT)
 	{
-		m_Position = m_Position + m_Speed * deltaT.count();
-	}
-	
-	void setSpeed(const Vec2d &speed)
-	{
-		m_Speed = speed;
-	}
-	
-	void setSpeedX(double x)
-	{
-		m_Speed[0] = x;
-	}
-	
-	void setSpeedY(double y)
-	{
-		m_Speed[1] = y;
+		speed = speed + (acceleration * deltaT.count());
+		speed = speed * (1 - friction);
+		if (speed.lengthSquared() < 0.0001) 
+			speed = Vec2d{};
+		m_Position = m_Position + speed * deltaT.count();
 	}
 };
+
+struct AxisDebug : public Engine::IRenderable
+{
+	Vec2i position;
+	Vec2i size;
+	double value;
+	double min;
+	double max;
+	
+	AxisDebug(Vec2i position, Vec2i size, double min = -1.0, double max = 1.0)
+		: position{position}
+		, size{size}
+		, value{0}
+		, min{min}
+		, max{max}
+	{
+	}
+
+	void render(ReSDL::Renderer& renderer)
+	{
+		SDL_Rect rect{ position.x(), position.y(), size.x() + 1, size.y() + 1 };
+		renderer.setDrawColor(ReSDL::Color::White);
+		renderer.drawRect(rect);
+		const double range = max - min;
+		const int valuePos = (value - min) / range * (double)size.x();
+		renderer.drawLine(position.x() + valuePos, position.y() - 1, position.x() + valuePos, position.y() + size.y() + 1);
+	}
+};
+
+struct RadialDebug : public Engine::IRenderable
+{
+	Vec2i position;
+	Vec2i size;
+	Vec2d value;
+	double min;
+	double max;
+
+	RadialDebug(Vec2i position, Vec2i size, double min = -1.0, double max = 1.0)
+		: position{ position }
+		, size{ size }
+		, value{}
+		, min{ min }
+		, max{ max }
+	{
+	}
+
+	void render(ReSDL::Renderer& renderer)
+	{
+		SDL_Rect rect{ position.x(), position.y(), size.x() + 1, size.y() + 1 };
+		Vec2d center = size * 0.5 + position;
+		renderer.setDrawColor(ReSDL::Color::White);
+		renderer.drawRect(rect);
+		const double range = max - min;
+		const int valuePosX = (value.x() - min) / range * (double)size.x();
+		const int valuePosY = (value.y() - min) / range * (double)size.y();
+		renderer.drawLine(center.x(), center.y(), position.x() + valuePosX, position.y() + valuePosY);
+	}
+};
+
 
 class Game {
 	Engine::Engine m_Engine;
@@ -100,18 +153,35 @@ public:
 		using namespace Engine::Input;
 		
 		std::shared_ptr<Sprite> playerSprite = std::make_shared<Sprite>(10, 10);
-		m_Engine.axisInputManager()->setAxisOffValue(Axis::Main_X, 0);
-		m_Engine.axisInputManager()->setAxisHandler(Axis::Main_X, [playerSprite](const Axis&, const double& value) {
-			playerSprite->setSpeedX(value / 10);
+		std::shared_ptr<AxisDebug> xDebug = std::make_shared<AxisDebug>(Vec2i{ 100, 100 }, Vec2i{ 100, 10 });
+		std::shared_ptr<AxisDebug> triggerDebug = std::make_shared<AxisDebug>(Vec2i{ 100, 120 }, Vec2i{ 100, 10 }, 0.0);
+		std::shared_ptr<RadialDebug> stickrDebug = std::make_shared<RadialDebug>(Vec2i{ 100, 10 }, Vec2i{ 80, 80 });
+		m_Engine.axisInputManager.setAxisHandler(Axis::Main_X, [playerSprite, xDebug](const Axis&, const double& value) {
+			playerSprite->acceleration.x() = (value / 1000);
+			xDebug->value = value;
 		});
-		m_Engine.axisInputManager()->setAxisOffValue(Axis::Main_Y, 0);
-		m_Engine.axisInputManager()->setAxisHandler(Axis::Main_Y, [playerSprite](const Axis&, const double& value) {
-			playerSprite->setSpeedY(value / 10);
+		m_Engine.axisInputManager.setAxisHandler(Axis::Main_Y, [playerSprite](const Axis&, const double& value) {
+			playerSprite->acceleration.y()= (value / 1000);
 		});
-		
+
+		m_Engine.axisInputManager.setRadialHandler(Radial::Main, [playerSprite, stickrDebug](const Radial&, const Vec2d& value) {
+			playerSprite->acceleration = value / 1000;
+			stickrDebug->value = value;
+		});
+
+		m_Engine.axisInputManager.setAxisHandler(Axis::Aux_0, [playerSprite, triggerDebug](const Axis&, const double& value) {
+			playerSprite->friction = 0.1 * (1.0 - value);
+			triggerDebug->value = value;
+		});
+
 		Vec<Uint8, 4> color({255, 0, 255, 0});
 		m_Engine.addRenderable(std::make_shared<ClearScreen>(color));
+
 		m_Engine.addRenderable(playerSprite);
+		m_Engine.addRenderable(xDebug);
+		m_Engine.addRenderable(triggerDebug);
+		m_Engine.addRenderable(stickrDebug);
+
 		m_Engine.addUpdateable(playerSprite);
 	}
 	

@@ -60,27 +60,23 @@ public:
 };
 	
 	
-class Engine {
-	std::unique_ptr<ReSDL::SDL> m_sdl;
+struct Engine {
+	ReSDL::SDL sdl;
 	
-	std::unique_ptr<RttRendererWindow> m_Window;
-	std::shared_ptr<Input::AxisInputManager> m_AxisInputManager;
-	std::shared_ptr<Input::EventManager> m_EventManager;
+	RttRendererWindow window;
+	Input::AxisInputManager axisInputManager;
+	Input::EventManager eventManager;
 	
 	std::vector<std::shared_ptr<IUpdatable>> m_Updateables;
 	std::vector<std::shared_ptr<IRenderable>> m_Renderables;
 	
-	long m_FrameCount;
-public:
+	long frameCount;
 	
-	Engine(/** initial config **/int width, int height, float pixelAspectRatio);
-	~Engine();
+	Engine(int width, int height, float pixelAspectRatio);
 
 	void start();
 	void addRenderable(std::shared_ptr<IRenderable> renderable);
 	void addUpdateable(std::shared_ptr<IUpdatable> updateable);
-	std::shared_ptr<Input::AxisInputManager> axisInputManager();
-	std::shared_ptr<Input::EventManager> eventManager();
 };
 
 
@@ -187,12 +183,12 @@ public:
 	{
 		rows = std::max<size_t>(rows, 1);
 		columns = std::max<size_t>(columns, 1);
-		SDL_Point size = texture.getSize();
-		size.x /= columns;
-		size.y /= rows;
+		ReSDL::Size size{ texture.size };
+		size.width /= columns;
+		size.height /= rows;
 		for(int iRow = 0; iRow < rows; ++iRow) {
 			for(int iColumn = 0; iColumn < columns; ++iColumn) {
-				rectangles.push_back({iColumn * size.x, iRow * size.y, size.x, size.y});
+				rectangles.push_back({iColumn * size.width, iRow * size.height, size.width, size.height});
 			}
 		}
 	}
