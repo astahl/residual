@@ -10,7 +10,7 @@ namespace ReSDL {
 		ReSDL::Size size{};
 
 		Texture(Renderer& renderer,
-			Uint32        format,
+			SDL_PixelFormatEnum format,
 			int           access,
 			int           w,
 			int           h)

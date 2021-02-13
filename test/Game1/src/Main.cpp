@@ -142,13 +142,40 @@ struct RadialDebug : public Engine::IRenderable
 	}
 };
 
+struct ButtonDebug : public Engine::IRenderable
+{
+	Vec2i position;
+	Vec2i size;
+	Engine::Input::ButtonState value;
+
+	ButtonDebug(Vec2i position, Vec2i size)
+		: position{ position }
+		, size{ size }
+		, value{Engine::Input::ButtonState::Off}
+	{
+	}
+
+	void render(ReSDL::Renderer& renderer)
+	{
+		SDL_Rect rect{ position.x(), position.y(), size.x(), size.y() };
+		renderer.setDrawColor(value == Engine::Input::ButtonState::Off 
+			? ReSDL::Color::Black 
+			: value == Engine::Input::ButtonState::Hold 
+				? ReSDL::Color::Green
+				: ReSDL::Color::Magenta);
+		renderer.fillRect(rect);
+		renderer.setDrawColor(value == Engine::Input::ButtonState::Push ? ReSDL::Color::Black : value == Engine::Input::ButtonState::Release ? ReSDL::Color::Black : ReSDL::Color::White);
+		renderer.drawRect(rect);
+	}
+};
+
 
 class Game {
 	Engine::Engine m_Engine;
 public:
 	
 	Game()
-		: m_Engine{ 320, 200, 0.75 }
+		: m_Engine{ 640, 480, 2.4/3.2 }
 	{
 		using namespace Engine::Input;
 		
@@ -156,6 +183,7 @@ public:
 		std::shared_ptr<AxisDebug> xDebug = std::make_shared<AxisDebug>(Vec2i{ 100, 100 }, Vec2i{ 100, 10 });
 		std::shared_ptr<AxisDebug> triggerDebug = std::make_shared<AxisDebug>(Vec2i{ 100, 120 }, Vec2i{ 100, 10 }, 0.0);
 		std::shared_ptr<RadialDebug> stickrDebug = std::make_shared<RadialDebug>(Vec2i{ 100, 10 }, Vec2i{ 80, 80 });
+		std::shared_ptr<ButtonDebug> buttonDebug = std::make_shared<ButtonDebug>(Vec2i{ 50, 50 }, Vec2i{ 10, 10 });
 		m_Engine.axisInputManager.setAxisHandler(Axis::Main_X, [playerSprite, xDebug](const Axis&, const double& value) {
 			playerSprite->acceleration.x() = (value / 1000);
 			xDebug->value = value;
@@ -174,6 +202,10 @@ public:
 			triggerDebug->value = value;
 		});
 
+		m_Engine.axisInputManager.setButtonHandler(Button::A, [buttonDebug](const Button& button, const ButtonState& state) {
+			buttonDebug->value = state;
+		});
+
 		Vec<Uint8, 4> color({255, 0, 255, 0});
 		m_Engine.addRenderable(std::make_shared<ClearScreen>(color));
 
@@ -181,6 +213,7 @@ public:
 		m_Engine.addRenderable(xDebug);
 		m_Engine.addRenderable(triggerDebug);
 		m_Engine.addRenderable(stickrDebug);
+		m_Engine.addRenderable(buttonDebug);
 
 		m_Engine.addUpdateable(playerSprite);
 	}

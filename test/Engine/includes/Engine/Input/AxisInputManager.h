@@ -12,6 +12,26 @@
 namespace Engine {
 	namespace Input {
 		
+		enum class Button {
+			A, B,
+			X, Y,
+			Select,
+			Start,
+			DPad_Up, DPad_Down, DPad_Left, DPad_Right,
+			Home,
+			Shoulder_Left, Shoulder_Right,
+			Stick_Left, Stick_Right
+		};
+
+
+		enum class ButtonState {
+			Off = 0,
+			Push 		= 0b001, 
+			Hold 		= 0b010,
+			Release 	= 0b100,
+			All = Push | Hold | Release
+		};
+
 		enum class Axis {
 			Main_X, Main_Y, Main_Z,
 			Secondary_X, Secondary_Y, Secondary_Z,
@@ -65,12 +85,39 @@ namespace Engine {
 			Radial radial;
 		};
 
-		struct KeyCross {
-			Uint8 up, down, left, right;
+		template<typename T>
+		struct Cross {
+			T up, down, left, right;
 		};
 
-		struct RadialKeyMapping {
+		using KeyCross = Cross<Uint8>;
+		using GameControllerButtonCross = Cross<SDL_GameControllerButton>;
+
+		struct RadialControllerMapping {
 			Radial radial;
+			GameControllerButtonCross cross;
+		};
+
+		using ButtonStateHandlerFunc = std::function<void(Button, ButtonState)>;
+		struct ButtonStateHandler {
+			ButtonState filter;
+			ButtonState previousState;
+			ButtonStateHandlerFunc handler;
+
+			void handle(Button button, ButtonState state) {
+				if (previousState == state) {
+					handler(button, state);
+				} else if (previousState == ButtonState::Off) {
+					// transition state
+					handler(button, ButtonState::Push);
+					//handler(button, ButtonState::Hold);
+				} else if (previousState == ButtonState::Hold) {
+					handler(button, ButtonState::Release);
+					//handler(button, ButtonState::Off);
+				}
+
+				previousState = state;
+			}
 		};
 
 		class AxisInputManager
@@ -82,15 +129,28 @@ namespace Engine {
 			std::map<std::shared_ptr<ReSDL::Joystick>, std::map<SDL_JoystickAxisId, S16Mapping>> joysticks;
 			std::map<std::shared_ptr<ReSDL::GameController>, std::map<SDL_GameControllerAxis, S16Mapping>> controllerMapping;
 			std::map<std::shared_ptr<ReSDL::GameController>, std::map<std::pair<SDL_GameControllerAxis, SDL_GameControllerAxis>, S16RadialMapping>> controllerRadialMapping;
+			std::map<std::shared_ptr<ReSDL::GameController>, RadialControllerMapping> controllerRadialButtonMapping;
 			std::map<Axis, AxisInputHandlerFunc> handlers;
 			std::map<Radial, RadialInputHandlerFunc> radialHandlers;
+
+			std::map<Uint8, Button> keyButtons;
+			std::map<std::shared_ptr<ReSDL::Joystick>, std::map<Uint8, Button>> joystickButtons;
+			std::map<std::shared_ptr<ReSDL::GameController>, std::map<SDL_GameControllerButton, Button>> controllerButtons;
+			
+			std::map<Button, ButtonStateHandler> buttonHandlers;
 			
 			const Sint16 deadZone = 1000;
 
-			void handleKeyState(std::map<Axis, double> &values, std::map<Radial, Vec2d>& radialValues) const
+			void handleKeyState(std::map<Axis, double> &values, std::map<Radial, Vec2d>& radialValues, std::map<Button, ButtonState>& buttonValues) const
 			{
 				const Uint8 *state = SDL_GetKeyboardState(NULL);
 				
+				for (const auto& [key, button] : keyButtons) 
+				{
+					if (state[key]) {
+						buttonValues[button] = ButtonState::Hold;
+					}
+				}
 
 				for (const auto& [key, mapping] : keys)
 				{
@@ -133,8 +193,18 @@ namespace Engine {
 				}
 			}
 			
-			void handleGameControllers(std::map<Axis, double> &values, std::map<Radial, Vec2d>& radialValues) const
+			void handleGameControllers(std::map<Axis, double> &values, std::map<Radial, Vec2d>& radialValues, std::map<Button, ButtonState>& buttonValues) const
 			{
+				for(const auto& [ controller, mappings ] : controllerButtons)
+				{
+					for(const auto& [ controllerButton, button ] : mappings)
+					{					
+						if (controller->getButton(controllerButton)) {
+							buttonValues[button] = ButtonState::Hold;
+						}
+					}
+				}
+
 				for(const auto& [ controller, mappings ] : controllerMapping)
 				{
 					for(const auto& [ conAxis, mapping ] : mappings)
@@ -157,9 +227,25 @@ namespace Engine {
 						}
 					}
 				}
+
+				for (const auto& [ controller, mapping] : controllerRadialButtonMapping)
+				{
+					Vec2d value{};
+					const bool
+						l = controller->getButton(mapping.cross.left),
+						r = controller->getButton(mapping.cross.right),
+						u = controller->getButton(mapping.cross.up),
+						d = controller->getButton(mapping.cross.down);
+
+					const double val = (l || r) && (u || d) ? 0.707 : 1.0;
+					value.x() = l ? -val : r ?  val : 0.0;
+					value.y() = d ?  val : u ? -val : 0.0;
+					
+					radialValues[mapping.radial] = value;
+				}
 			}
 			
-			void submitValues(const std::map<Axis, double> &values) const
+			void submitValues(const std::map<Axis, double> &values, const std::map<Radial, Vec2d>& radialValues, const std::map<Button, ButtonState>& buttonValues)
 			{
 				for(const auto& [axis, handler] : handlers) {
 					if(values.count(axis))
@@ -167,27 +253,34 @@ namespace Engine {
 						handler(axis, values.at(axis));
 					}
 				}
-			}
 
-			void submitRadialValues(const std::map<Radial, Vec2d>& values) const
-			{
 				for (const auto& [radial, handler] : radialHandlers) {
-					if (values.count(radial))
+					if (radialValues.count(radial))
 					{
-						handler(radial, values.at(radial));
+						handler(radial, radialValues.at(radial));
+					}
+				}
+
+				for (auto& [button, handler] : buttonHandlers) {
+					if (buttonValues.count(button))
+					{
+						handler.handle(button, buttonValues.at(button));
 					}
 				}
 			}
 
 		public:
-			void handleAndSubmitEvents() const {
+			void handleAndSubmitEvents() {
 				std::map<Axis, double> values{};
 				std::map<Radial, Vec2d> radialValues{};
-				this->handleKeyState(values, radialValues);
+				std::map<Button, ButtonState> buttonValues{};
+				for (auto& [button, handler] : buttonHandlers) {
+					buttonValues[button] = ButtonState::Off;
+				}
+				this->handleKeyState(values, radialValues, buttonValues);
 				this->handleJoysticks(values);
-				this->handleGameControllers(values, radialValues);
-				this->submitValues(values);
-				submitRadialValues(radialValues);
+				this->handleGameControllers(values, radialValues, buttonValues);
+				this->submitValues(values, radialValues, buttonValues);
 			}
 			
 
@@ -231,6 +324,23 @@ namespace Engine {
 			{
 				controllerRadialMapping[controller][std::make_pair(controllerAxisX, controllerAxisY)] = S16RadialMapping{ mapping, radial };
 			}
+
+			void setGameControllerMapping(std::shared_ptr<ReSDL::GameController> controller,
+				SDL_GameControllerButton buttonUp,
+				SDL_GameControllerButton buttonDown,
+				SDL_GameControllerButton buttonLeft,
+				SDL_GameControllerButton buttonRight,
+				Radial radial)
+			{
+				controllerRadialButtonMapping[controller] = { radial, GameControllerButtonCross{buttonUp, buttonDown, buttonLeft, buttonRight }};
+			}
+
+			void setGameControllerMapping(std::shared_ptr<ReSDL::GameController> controller,
+				SDL_GameControllerButton controllerButton, 
+				Button button)
+			{
+				controllerButtons[controller][controllerButton] = button;
+			}
 			
 			void setAxisHandler(Axis axis, AxisInputHandlerFunc handler)
 			{
@@ -249,6 +359,16 @@ namespace Engine {
 				}
 				else {
 					radialHandlers.erase(radial);
+				}
+			}
+
+			void setButtonHandler(Button button, ButtonStateHandlerFunc handler, ButtonState filter = ButtonState::All) 
+			{
+				if (handler) {
+					buttonHandlers[button] = { filter, ButtonState::Off, handler };
+				}
+				else {
+					buttonHandlers.erase(button);
 				}
 			}
 

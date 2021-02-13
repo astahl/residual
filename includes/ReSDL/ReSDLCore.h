@@ -10,6 +10,7 @@
 #include "SDL.h"
 #include "ReSDL/ReSDLTypes.h"
 #include "ReSDL/ReSDLCommon.h"
+#include "ReSDL/AudioDevice.h"
 #include "ReSDL/Surface.h"
 #include "ReSDL/Window.h"
 #include "ReSDL/Renderer.h"
@@ -22,7 +23,7 @@ namespace ReSDL {
 	
 	class SDL {
 	public:
-		SDL(int initFlags = SDL_INIT_EVERYTHING | SDL_INIT_AUDIO);
+		SDL(int initFlags = SDL_INIT_EVERYTHING);
 		~SDL();
 	};
 	
